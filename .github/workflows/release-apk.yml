@@ -53,10 +53,19 @@ jobs:
           packages: >-
             tools
             platform-tools
-            build-tools;${{ env.ANDROID_BUILD_TOOLS_VERSION }}
-            ndk;${{ env.ANDROID_NDK_VERSION }}
+            build-tools;36.0.0
+            ndk;27.2.12479018
             platforms;android-36
             platforms;android-37.0
+            cmake;3.22.1
+
+      - name: Accept Android SDK & Intel Licenses
+        run: |
+          yes | sdkmanager --licenses || true
+          # Alternatively, echo all licenses into the Android SDK license folder:
+          mkdir -p $ANDROID_SDK_ROOT/licenses
+          echo -e "\n24333f8a43b680623045d304f54593947849e7b3" > $ANDROID_SDK_ROOT/licenses/android-sdk-license
+          echo -e "\n84831b9409646a918e30573bab4c9c91346d8abd" > $ANDROID_SDK_ROOT/licenses/android-sdk-preview-license
 
       - name: Generate Keystore & local.properties
         run: |
