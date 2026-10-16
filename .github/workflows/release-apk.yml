@@ -1,0 +1,85 @@
+name: VikXGram
+
+on:
+  workflow_dispatch:
+    inputs:
+      version_tag:
+        description: 'Release Version Tag (e.g., v1.0.0)'
+        required: true
+        default: 'v1.0.0'
+
+permissions:
+  contents: write
+
+jobs:
+  build-nagramx:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Free up cloud disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /opt/ghc
+          sudo rm -rf "/usr/local/share/boost"
+          df -h
+
+      - name: Checkout vksir08/NagramX with Submodules
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 1
+
+      - name: Set up JDK 21 & JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+          cache: 'gradle'
+
+      - name: Generate Keystore & local.properties for NagramX
+        run: |
+          rm -f TMessagesProj/release.keystore
+          keytool -genkeypair -v \
+            -keystore TMessagesProj/release.keystore \
+            -alias androiddebugkey \
+            -keyalg RSA -keysize 2048 -validity 10000 \
+            -storepass android -keypass android \
+            -dname "CN=VKSir08, OU=Dev, O=NagramXMod, L=Ahmedabad, S=GJ, C=IN"
+
+          cat <<EOF > local.properties
+          TELEGRAM_APP_ID=${{ secrets.TELEGRAM_APP_ID || '4' }}
+          TELEGRAM_APP_HASH=${{ secrets.TELEGRAM_APP_HASH || '014b35b6184100b085b0d0572f9b5103' }}
+          KEYSTORE_PASS=android
+          ALIAS_NAME=androiddebugkey
+          ALIAS_PASS=android
+          EOF
+
+      - name: Compile NagramX ARM64 Release APK
+        run: |
+          chmod +x gradlew
+          ./gradlew :TMessagesProj:assembleArm64Release --no-daemon --stacktrace -Dorg.gradle.jvmargs="-Xmx6g"
+
+      - name: Rename Compiled APK
+        run: |
+          mkdir -p release_apk
+          APK_FILE=$(find TMessagesProj/build/outputs/apk -name "*.apk" | head -n 1)
+          echo "Found compiled APK: $APK_FILE"
+          cp "$APK_FILE" release_apk/NagramX-Mod-${{ github.event.inputs.version_tag || 'v1.0.0' }}.apk
+
+      - name: Publish Direct Download to GitHub Releases
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ github.event.inputs.version_tag || 'v1.0.0' }}
+          name: "NagramX Custom Mod ${{ github.event.inputs.version_tag || 'v1.0.0' }}"
+          body: |
+            ### Custom NagramX Mod (${{ github.event.inputs.version_tag || 'v1.0.0' }})
+            * Extreme Download & Upload Speed Boost enabled by default
+            * AyuGram Anti-Delete & Message Edit History
+            * Ghost Mode & Stealth Story Viewer
+            * Unrestricted Media Saving & Screenshot Unlock
+            * UID, DC Location & Account/Channel Creation Date on Profiles
+          files: release_apk/*.apk
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
