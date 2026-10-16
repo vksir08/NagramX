@@ -29,11 +29,11 @@ jobs:
           submodules: recursive
           fetch-depth: 1
 
-      - name: Set up JDK 17
+      - name: Set up JDK 21 & JDK 17
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
-          java-version: '17'
+          java-version: '21'
           cache: 'gradle'
 
       - name: Generate Keystore & local.properties for NagramX
@@ -47,41 +47,22 @@ jobs:
             -dname "CN=VKSir08, OU=Dev, O=NagramXMod, L=Ahmedabad, S=GJ, C=IN"
 
           cat <<EOF > local.properties
-          TELEGRAM_APP_ID=4
-          TELEGRAM_APP_HASH=014b35b6184100b085b0d0572f9b5103
+          TELEGRAM_APP_ID=${{ secrets.TELEGRAM_APP_ID || '4' }}
+          TELEGRAM_APP_HASH=${{ secrets.TELEGRAM_APP_HASH || '014b35b6184100b085b0d0572f9b5103' }}
           KEYSTORE_PASS=android
           ALIAS_NAME=androiddebugkey
           ALIAS_PASS=android
-          APP_PACKAGE=com.vksir08.telemod
           EOF
 
-      - name: Compile NagramX Release APK with Fallback
+      - name: Compile NagramX ARM64 Release APK
         run: |
           chmod +x gradlew
-          set -e
-          if ./gradlew :TMessagesProj:assembleArm64Release --no-daemon --stacktrace -Dorg.gradle.jvmargs="-Xmx6g"; then
-            echo "Built using assembleArm64Release"
-          else
-            echo "assembleArm64Release not found — falling back to assembleRelease and listing tasks for diagnosis"
-            ./gradlew :TMessagesProj:tasks --all
-            ./gradlew :TMessagesProj:assembleRelease --no-daemon --stacktrace -Dorg.gradle.jvmargs="-Xmx6g"
-          fi
+          ./gradlew :TMessagesProj:assembleArm64Release --no-daemon --stacktrace -Dorg.gradle.jvmargs="-Xmx6g"
 
-      - name: Locate and Rename Compiled APK
+      - name: Rename Compiled APK
         run: |
           mkdir -p release_apk
-          
-          # Find arm64 specific APK output first, fallback to generic release APK
-          APK_FILE=$(find TMessagesProj/build/outputs -type f -name "*arm64*.apk" -print -quit)
-          if [ -z "$APK_FILE" ]; then
-            APK_FILE=$(find TMessagesProj/build/outputs/apk -name "*.apk" | head -n 1)
-          fi
-          
-          if [ -z "$APK_FILE" ]; then
-            echo "No APK found in TMessagesProj/build/outputs" >&2
-            exit 1
-          fi
-          
+          APK_FILE=$(find TMessagesProj/build/outputs/apk -name "*.apk" | head -n 1)
           echo "Found compiled APK: $APK_FILE"
           cp "$APK_FILE" release_apk/NagramX-Mod-${{ github.event.inputs.version_tag || 'v1.0.0' }}.apk
 
@@ -92,7 +73,11 @@ jobs:
           name: "NagramX Custom Mod ${{ github.event.inputs.version_tag || 'v1.0.0' }}"
           body: |
             ### Custom NagramX Mod (${{ github.event.inputs.version_tag || 'v1.0.0' }})
-            * Built successfully via GitHub Actions workflow with smart build fallback.
+            * Extreme Download & Upload Speed Boost enabled by default
+            * AyuGram Anti-Delete & Message Edit History
+            * Ghost Mode & Stealth Story Viewer
+            * Unrestricted Media Saving & Screenshot Unlock
+            * UID, DC Location & Account/Channel Creation Date on Profiles
           files: release_apk/*.apk
           draft: false
           prerelease: false
