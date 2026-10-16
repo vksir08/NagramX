@@ -11,6 +11,13 @@ on:
 permissions:
   contents: write
 
+env:
+  JAVA_VERSION: '21'
+  ANDROID_BUILD_TOOLS_VERSION: '36.0.0'
+  ANDROID_NDK_VERSION: '27.2.12479018'
+  ANDROID_PLATFORM_VERSION: 'android-37'
+  NATIVE_TARGET: 'arm64-v8a'
+
 jobs:
   build-nagramx:
     runs-on: ubuntu-latest
@@ -23,20 +30,35 @@ jobs:
           sudo rm -rf "/usr/local/share/boost"
           df -h
 
+      - name: Install NASM (Required by jni/CMakeLists.txt)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y nasm ninja-build
+
       - name: Checkout vksir08/NagramX with Submodules
         uses: actions/checkout@v4
         with:
           submodules: recursive
           fetch-depth: 1
 
-      - name: Set up JDK 21 & JDK 17
+      - name: Set up JDK 21
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
-          java-version: '21'
+          java-version: ${{ env.JAVA_VERSION }}
           cache: 'gradle'
 
-      - name: Generate Keystore & local.properties for NagramX
+      - name: Set up Android SDK, Build-Tools 36 & NDK 27.2
+        uses: android-actions/setup-android@v3
+        with:
+          packages: >-
+            tools
+            platform-tools
+            build-tools;${{ env.ANDROID_BUILD_TOOLS_VERSION }}
+            ndk;${{ env.ANDROID_NDK_VERSION }}
+            platforms;${{ env.ANDROID_PLATFORM_VERSION }}
+
+      - name: Generate Keystore, local.properties & Tune Gradle JVM
         run: |
           rm -f TMessagesProj/release.keystore
           keytool -genkeypair -v \
@@ -44,9 +66,10 @@ jobs:
             -alias androiddebugkey \
             -keyalg RSA -keysize 2048 -validity 10000 \
             -storepass android -keypass android \
-            -dname "CN=VKSir08, OU=Dev, O=NagramXMod, L=Ahmedabad, S=GJ, C=IN"
+            -dname "CN=VKSir08, OU=Dev, O=VikGram, L=Ahmedabad, S=GJ, C=IN"
 
           cat <<EOF > local.properties
+          sdk.dir=${ANDROID_HOME}
           TELEGRAM_APP_ID=${{ secrets.TELEGRAM_APP_ID || '4' }}
           TELEGRAM_APP_HASH=${{ secrets.TELEGRAM_APP_HASH || '014b35b6184100b085b0d0572f9b5103' }}
           KEYSTORE_PASS=android
@@ -54,30 +77,52 @@ jobs:
           ALIAS_PASS=android
           EOF
 
+          cat <<EOF >> gradle.properties
+
+          org.gradle.jvmargs=-Xmx8g -XX:+UseParallelGC -XX:MaxMetaspaceSize=2g -Dfile.encoding=UTF-8
+          org.gradle.parallel=true
+          EOF
+
       - name: Compile NagramX ARM64 Release APK
+        env:
+          NATIVE_TARGET: arm64-v8a
         run: |
           chmod +x gradlew
-          ./gradlew :TMessagesProj:assembleArm64Release --no-daemon --stacktrace -Dorg.gradle.jvmargs="-Xmx6g"
+          ./gradlew :TMessagesProj:assembleRelease \
+            -PNATIVE_TARGET=arm64-v8a \
+            --no-daemon \
+            --stacktrace
 
-      - name: Rename Compiled APK
+      - name: Locate and Rename Compiled ARM64 APK
         run: |
           mkdir -p release_apk
-          APK_FILE=$(find TMessagesProj/build/outputs/apk -name "*.apk" | head -n 1)
-          echo "Found compiled APK: $APK_FILE"
-          cp "$APK_FILE" release_apk/NagramX-Mod-${{ github.event.inputs.version_tag || 'v1.0.0' }}.apk
+
+          echo "=== Produced APKs ==="
+          find TMessagesProj/build/outputs -type f -name "*.apk"
+
+          APK_FILE=$(find TMessagesProj/build/outputs -type f -name "*arm64*.apk" -print -quit)
+          if [ -z "$APK_FILE" ]; then
+            APK_FILE=$(find TMessagesProj/build/outputs/apk -type f -name "*.apk" -print -quit)
+          fi
+
+          if [ -z "$APK_FILE" ] \vert{}\vert{} [ ! -f "$APK_FILE" ]; then
+            echo "Error: No compiled APK found in TMessagesProj/build/outputs!" >&2
+            exit 1
+          fi
+
+          echo "Selected APK: $APK_FILE"
+          cp "$APK_FILE" "release_apk/VikGram-${{ github.event.inputs.version_tag || 'v1.0.0' }}-arm64-v8a.apk"
 
       - name: Publish Direct Download to GitHub Releases
         uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ github.event.inputs.version_tag || 'v1.0.0' }}
-          name: "NagramX Custom Mod ${{ github.event.inputs.version_tag || 'v1.0.0' }}"
+          name: "VikGram Custom Mod ${{ github.event.inputs.version_tag || 'v1.0.0' }}"
           body: |
-            ### Custom NagramX Mod (${{ github.event.inputs.version_tag || 'v1.0.0' }})
-            * Extreme Download & Upload Speed Boost enabled by default
-            * AyuGram Anti-Delete & Message Edit History
-            * Ghost Mode & Stealth Story Viewer
-            * Unrestricted Media Saving & Screenshot Unlock
-            * UID, DC Location & Account/Channel Creation Date on Profiles
+            ### VikGram Custom Mod (${{ github.event.inputs.version_tag || 'v1.0.0' }})
+            * Package: `com.vksir.vikgram`
+            * Target ABI: `arm64-v8a`
+            * Built with NDK `27.2.12479018` & Build-Tools `36.0.0`
           files: release_apk/*.apk
           draft: false
           prerelease: false
