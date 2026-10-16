@@ -15,7 +15,6 @@ env:
   JAVA_VERSION: '21'
   ANDROID_BUILD_TOOLS_VERSION: '36.0.0'
   ANDROID_NDK_VERSION: '27.2.12479018'
-  ANDROID_PLATFORM_VERSION: 'android-37'
   NATIVE_TARGET: 'arm64-v8a'
 
 jobs:
@@ -30,7 +29,7 @@ jobs:
           sudo rm -rf "/usr/local/share/boost"
           df -h
 
-      - name: Install NASM (Required by jni/CMakeLists.txt)
+      - name: Install NASM & Ninja (Required by jni/CMakeLists.txt)
         run: |
           sudo apt-get update
           sudo apt-get install -y nasm ninja-build
@@ -48,7 +47,7 @@ jobs:
           java-version: ${{ env.JAVA_VERSION }}
           cache: 'gradle'
 
-      - name: Set up Android SDK, Build-Tools 36 & NDK 27.2
+      - name: Set up Android SDK, Build-Tools 36.0.0 & NDK 27.2.12479018
         uses: android-actions/setup-android@v3
         with:
           packages: >-
@@ -56,9 +55,10 @@ jobs:
             platform-tools
             build-tools;${{ env.ANDROID_BUILD_TOOLS_VERSION }}
             ndk;${{ env.ANDROID_NDK_VERSION }}
-            platforms;${{ env.ANDROID_PLATFORM_VERSION }}
+            platforms;android-36
+            platforms;android-37.0
 
-      - name: Generate Keystore, local.properties & Tune Gradle JVM
+      - name: Generate Keystore & local.properties
         run: |
           rm -f TMessagesProj/release.keystore
           keytool -genkeypair -v \
@@ -77,12 +77,6 @@ jobs:
           ALIAS_PASS=android
           EOF
 
-          cat <<EOF >> gradle.properties
-
-          org.gradle.jvmargs=-Xmx8g -XX:+UseParallelGC -XX:MaxMetaspaceSize=2g -Dfile.encoding=UTF-8
-          org.gradle.parallel=true
-          EOF
-
       - name: Compile NagramX ARM64 Release APK
         env:
           NATIVE_TARGET: arm64-v8a
@@ -91,15 +85,13 @@ jobs:
           ./gradlew :TMessagesProj:assembleRelease \
             -PNATIVE_TARGET=arm64-v8a \
             --no-daemon \
-            --stacktrace
+            --no-configuration-cache \
+            --stacktrace \
+            -Dorg.gradle.jvmargs="-Xmx8g -XX:+UseParallelGC -XX:MaxMetaspaceSize=2g -Dfile.encoding=UTF-8"
 
       - name: Locate and Rename Compiled ARM64 APK
         run: |
           mkdir -p release_apk
-
-          echo "=== Produced APKs ==="
-          find TMessagesProj/build/outputs -type f -name "*.apk"
-
           APK_FILE=$(find TMessagesProj/build/outputs -type f -name "*arm64*.apk" -print -quit)
           if [ -z "$APK_FILE" ]; then
             APK_FILE=$(find TMessagesProj/build/outputs/apk -type f -name "*.apk" -print -quit)
@@ -110,7 +102,6 @@ jobs:
             exit 1
           fi
 
-          echo "Selected APK: $APK_FILE"
           cp "$APK_FILE" "release_apk/VikGram-${{ github.event.inputs.version_tag || 'v1.0.0' }}-arm64-v8a.apk"
 
       - name: Publish Direct Download to GitHub Releases
@@ -120,11 +111,4 @@ jobs:
           name: "VikGram Custom Mod ${{ github.event.inputs.version_tag || 'v1.0.0' }}"
           body: |
             ### VikGram Custom Mod (${{ github.event.inputs.version_tag || 'v1.0.0' }})
-            * Package: `com.vksir.vikgram`
             * Target ABI: `arm64-v8a`
-            * Built with NDK `27.2.12479018` & Build-Tools `36.0.0`
-          files: release_apk/*.apk
-          draft: false
-          prerelease: false
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
