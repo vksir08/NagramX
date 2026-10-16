@@ -55,23 +55,33 @@ jobs:
           APP_PACKAGE=com.vksir08.telemod
           EOF
 
-      - name: Compile NagramX Release APK (produce arm64)
+      - name: Compile NagramX Release APK with Fallback
         run: |
           chmod +x gradlew
-          export NATIVE_TARGET=arm64-v8a
-          ./gradlew :TMessagesProj:assembleRelease --no-daemon --stacktrace -Dorg.gradle.jvmargs="-Xmx6g"
+          set -e
+          if ./gradlew :TMessagesProj:assembleArm64Release --no-daemon --stacktrace -Dorg.gradle.jvmargs="-Xmx6g"; then
+            echo "Built using assembleArm64Release"
+          else
+            echo "assembleArm64Release not found — falling back to assembleRelease and listing tasks for diagnosis"
+            ./gradlew :TMessagesProj:tasks --all
+            ./gradlew :TMessagesProj:assembleRelease --no-daemon --stacktrace -Dorg.gradle.jvmargs="-Xmx6g"
+          fi
 
-      - name: Rename Compiled APK (pick arm64 if available)
+      - name: Locate and Rename Compiled APK
         run: |
           mkdir -p release_apk
+          
+          # Find arm64 specific APK output first, fallback to generic release APK
           APK_FILE=$(find TMessagesProj/build/outputs -type f -name "*arm64*.apk" -print -quit)
           if [ -z "$APK_FILE" ]; then
             APK_FILE=$(find TMessagesProj/build/outputs/apk -name "*.apk" | head -n 1)
           fi
+          
           if [ -z "$APK_FILE" ]; then
             echo "No APK found in TMessagesProj/build/outputs" >&2
             exit 1
           fi
+          
           echo "Found compiled APK: $APK_FILE"
           cp "$APK_FILE" release_apk/NagramX-Mod-${{ github.event.inputs.version_tag || 'v1.0.0' }}.apk
 
@@ -82,7 +92,7 @@ jobs:
           name: "NagramX Custom Mod ${{ github.event.inputs.version_tag || 'v1.0.0' }}"
           body: |
             ### Custom NagramX Mod (${{ github.event.inputs.version_tag || 'v1.0.0' }})
-            * Built successfully using release variant ABI splits for arm64.
+            * Built successfully via GitHub Actions workflow with smart build fallback.
           files: release_apk/*.apk
           draft: false
           prerelease: false
