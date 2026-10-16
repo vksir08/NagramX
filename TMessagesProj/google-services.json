@@ -1,13 +1,13 @@
 {
   "project_info": {
-    "project_number": "62187470554",
-    "project_id": "vikxgram",
-    "storage_bucket": "vikxgram.firebasestorage.app"
+    "project_number": "833982459546",
+    "project_id": "vikgram-3671f",
+    "storage_bucket": "vikgram-3671f.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:62187470554:android:6f6f98c17e179d291befe3",
+        "mobilesdk_app_id": "1:833982459546:android:90b035e22e7200e44b7923",
         "android_client_info": {
           "package_name": "com.vksir.vikgram"
         }
@@ -15,7 +15,7 @@
       "oauth_client": [],
       "api_key": [
         {
-          "current_key": "AIzaSyBEtn4pW6AYPvXkiJ00sTyezryOVLjWxto"
+          "current_key": "AIzaSyDs40Yr6i72IiLiv3Ot9EMKG_7ZemkdFT8"
         }
       ],
       "services": {
