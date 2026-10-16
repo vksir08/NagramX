@@ -68,7 +68,7 @@ if (nativeTarget == 'SKIP') {
 }
 
 android {
-    defaultConfig.applicationId = APP_PACKAGE
+    defaultConfig.applicationId "com.vksir.vikgram"
 
     androidResources {
         localeFilters += [
