@@ -1,4 +1,4 @@
-name: VikXGram
+name: Build & Publish NagramX APK
 
 on:
   workflow_dispatch:
